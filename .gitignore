@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# AutoHeal
+secrets/
+*.pem
+data/runs.json
+# Demo repo is pushed as its own repository
+demo-etl-repo/

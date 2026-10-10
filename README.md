@@ -19,9 +19,21 @@ This project uses a Monorepo structure:
 autoheal-agent/
 ├── backend/      # FastAPI, LangGraph/Multi-Agent Logic, API Integration
 ├── frontend/     # Observability Dashboard (Streamlit)
-├── .github/      # Demo Repository (GitHub Actions)
+├── demo-etl-repo/ # Demo repo with a broken ETL + GitHub Actions (pushed as its own repo)
+├── docs/          # Setup guides
 └── requirements.txt
 ```
+
+### Backend modules
+| File | Owner | Purpose |
+|---|---|---|
+| `backend/main.py` | Shared | `POST /webhook`, `GET /runs`, runs Researcher → Engineer → PR in the background |
+| `backend/agent_researcher.py` | Anggota A | Tavily research and Root Cause Analysis |
+| `backend/agent_engineer.py` | Anggota B | Nemotron generates the fixed file, checks the syntax |
+| `backend/github_integration.py` | Anggota B | GitHub App / token auth, branch, commit and Pull Request |
+| `backend/run_store.py` | Shared | Stores runs in `data/runs.json` for the dashboard |
+
+See [docs/github-app-setup.md](docs/github-app-setup.md) to set up the GitHub App, the demo repo and the full flow.
 
 ## How to Run Locally
 
@@ -31,6 +43,8 @@ autoheal-agent/
    cd autoheal-agent
    pip install -r requirements.txt
    ```
+
+   Then copy `.env.example` to `.env` and fill in your API keys.
 
 2. **Run the Backend (FastAPI)**
    ```bash
