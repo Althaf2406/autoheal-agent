@@ -4,6 +4,63 @@ import streamlit as st
 # Konfigurasi Halaman
 st.set_page_config(page_title="AutoHeal Agent Dashboard", layout="wide")
 
+# Custom Premium CSS (NVIDIA Green Aesthetic)
+st.markdown("""
+<style>
+    /* Gradient Text for Title */
+    h1 {
+        background: -webkit-linear-gradient(45deg, #76b900, #b2ff2e);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
+    }
+    
+    /* Sleek buttons with hover effects */
+    .stButton > button {
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        border: 1px solid #76b900;
+        background-color: transparent;
+        color: #76b900;
+    }
+    .stButton > button:hover {
+        background-color: #76b900;
+        color: #000000;
+        box-shadow: 0 4px 15px rgba(118, 185, 0, 0.4);
+        transform: translateY(-2px);
+    }
+    
+    /* Subheaders */
+    h3 {
+        color: #e0e0e0;
+        border-bottom: 1px solid #3b5c00;
+        padding-bottom: 5px;
+        margin-bottom: 15px;
+    }
+    
+    /* Fix text visibility in markdown and code blocks */
+    code {
+        color: #b2ff2e !important;
+        background-color: #1a241c !important;
+        -webkit-text-fill-color: initial !important; /* Fix if inside gradient h1 */
+    }
+    pre {
+        background-color: #1a241c !important;
+        border: 1px solid #3b5c00;
+    }
+    pre code {
+        color: #e0e0e0 !important;
+        background-color: transparent !important;
+        -webkit-text-fill-color: initial !important;
+    }
+    
+    /* Subtle container styling */
+    .block-container {
+        padding-top: 2rem !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Judul Aplikasi
 st.title("🛠️ AutoHeal Agent Dashboard")
 st.markdown("Dashboard ini menampilkan proses perbaikan pipeline data secara otomatis (Multi-Agent).")
