@@ -1,6 +1,6 @@
 # AutoHeal Data Agent
 
-AutoHeal Data Agent is an autonomous **GitHub Application** that functions as an AI data engineer. This system uses a Multi-Agent System architecture to automatically detect, research, and fix broken data pipelines.
+AutoHeal Data Agent is an autonomous **GitHub Actions** that functions as an AI data engineer. This system uses a Multi-Agent System architecture to automatically detect, research, and fix broken data pipelines.
 
 ## System Architecture (Multi-Agent)
 This system is divided into two main agents that work together:
