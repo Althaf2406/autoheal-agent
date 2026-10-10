@@ -6,11 +6,17 @@ from tavily import TavilyClient
 # Load environment variables from .env file (override is important so it picks up key updates)
 load_dotenv(override=True)
 
-# Setup connection to Nebius and Tavily
-nebius_client = OpenAI(
-    base_url="https://api.tokenfactory.nebius.com/v1/",
-    api_key=os.environ.get("NEBIUS_API_KEY")
-)
+# Setup lazy client connection to Nebius
+_client = None
+
+def get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        api_key = os.environ.get("NEBIUS_API_KEY")
+        if not api_key:
+            raise RuntimeError("NEBIUS_API_KEY is not set in .env")
+        _client = OpenAI(base_url="https://api.tokenfactory.nebius.com/v1/", api_key=api_key)
+    return _client
 
 # Use NVIDIA Nemotron 3 Ultra model
 MODEL_ID = "nvidia/Nemotron-3-Ultra-550b-a55b"
@@ -19,7 +25,7 @@ def run_researcher(error_message: str) -> str:
     print(f"\n🕵️ [Agent Researcher] Starting error analysis...")
     
     # --- Step 1: Extract Keyword for Web Search ---
-    response = nebius_client.chat.completions.create(
+    response = get_client().chat.completions.create(
         model=MODEL_ID,
         messages=[
             {"role": "system", "content": "You are a Google Search query generator. Your ONLY job is to output a single, short search query string to find a solution for the provided error. DO NOT include any conversational text, explanations, or quotes. Output ONLY the raw query string."},
@@ -68,7 +74,7 @@ def run_researcher(error_message: str) -> str:
     """
     
     print("🧠 [Agent Researcher] Summarizing research and writing Root Cause Analysis...")
-    analysis_response = nebius_client.chat.completions.create(
+    analysis_response = get_client().chat.completions.create(
         model=MODEL_ID,
         messages=[{"role": "user", "content": analysis_prompt}],
         max_tokens=800

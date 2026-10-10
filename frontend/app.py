@@ -14,14 +14,8 @@ st.divider()
 st.subheader("📡 Log Penerimaan Error (Webhook)")
 st.caption("Pesan error dari GitHub Actions akan ditampilkan di bawah ini:")
 
-# Placeholder kosong menggunakan st.empty() atau st.container() 
-# Ini nantinya akan diisi secara dinamis dengan data dari backend
+# Placeholder kosong menggunakan st.empty()
 log_container = st.empty()
-
-# Contoh isi sementara (placeholder)
-with log_container.container():
-    st.info("Menunggu pesan error dari GitHub Actions...")
-    # Nanti kita bisa gunakan st.json() atau st.code() untuk menampilkan payload asli di sini.
 
 # =====================================================================
 # Bagian Bawah Dashboard (Anggota B): Kode Perbaikan LLM & Status Pull Request
@@ -84,6 +78,18 @@ else:
         f"Repo: `{payload.get('repo', '-')}` · File: `{payload.get('file_path', '-')}` · "
         f"Status: **{STATUS_LABELS.get(run['status'], run['status'])}**"
     )
+
+    # Mengisi placeholder bagian atas dengan error & analysis
+    with log_container.container():
+        st.subheader("🚨 Error Asli (Dari GitHub)")
+        st.code(run.get("error_log", "Tidak ada error log"), language="python")
+        
+        analysis = run.get("analysis")
+        if analysis:
+            st.subheader("🕵️ Root Cause Analysis (Agent Researcher)")
+            st.markdown(analysis)
+        elif run["status"] == "received":
+            st.info("Menunggu Agent Researcher...")
 
     # --- Kode Perbaikan LLM ---
     st.subheader("💻 Kode Perbaikan LLM")
