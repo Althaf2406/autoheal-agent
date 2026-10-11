@@ -27,11 +27,27 @@ autoheal-agent/
 ### Backend modules
 | File | Owner | Purpose |
 |---|---|---|
-| `backend/main.py` | Shared | `POST /webhook`, `GET /runs`, runs Researcher → Engineer → PR in the background |
+| `backend/main.py` | Shared | `POST /webhook`, `GET /runs`, history/resume, rate-limit endpoints; runs the graph in the background |
+| `backend/graph.py` | Shared | LangGraph state machine with checkpoints (`data/checkpoints.sqlite`) |
+| `backend/contracts.py` | Shared | Contract types between A and B + stubs for A's modules until they exist |
 | `backend/agent_researcher.py` | Anggota A | Tavily research and Root Cause Analysis |
-| `backend/agent_engineer.py` | Anggota B | Nemotron generates the fixed file, checks the syntax |
-| `backend/github_integration.py` | Anggota B | GitHub App / token auth, branch, commit and Pull Request |
+| `backend/agent_engineer.py` | Anggota B | Nemotron generates the fixed file, takes feedback from guardrails/sandbox |
+| `backend/guardrails.py` | Anggota B | SAST (ast, ruff, bandit, semgrep) + destructive operation policy + diff budget |
+| `backend/sandbox.py` | Anggota B | Clone at the failing commit, reproduce, apply patch, run pytest in Docker (`--network none`) |
+| `backend/rate_limiter.py` | Anggota B | PR quota, fingerprint cooldown, circuit breaker, GitHub API backoff |
+| `backend/escalation.py` | Anggota B | Escalation issue body + Slack notification |
+| `backend/github_integration.py` | Anggota B | Auth, Draft PR + `autoheal-bot` label, comments, escalation issues |
 | `backend/run_store.py` | Shared | Stores runs in `data/runs.json` for the dashboard |
+
+### V2 flow
+```text
+webhook -> redact -> dedup --(duplicate)--> comment "Terjadi lagi (xN)" on the open PR
+                       \-> research -> retrieve_context -> engineer -> SAST -> sandbox -> Draft PR (autoheal-bot)
+                                                        ^__________|________|   max 3 iterations
+                                                                    \________\-> escalate: GitHub Issue (+ Slack)
+```
+Docker is needed for the sandbox. Without it the sandbox is skipped (the PR body says so);
+`AUTOHEAL_SANDBOX=local` runs the tests on the host for development only.
 
 See [docs/github-app-setup.md](docs/github-app-setup.md) to set up the GitHub App, the demo repo and the full flow.
 
