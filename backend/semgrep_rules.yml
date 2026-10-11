@@ -1,0 +1,31 @@
+# Local Semgrep rules for guardrails.py (layer 5). Kept local so the check works without network access.
+rules:
+  - id: sql-built-with-fstring
+    languages: [python]
+    severity: ERROR
+    message: SQL query built with an f-string or string formatting. Use query parameters instead.
+    pattern-either:
+      - pattern: $DB.execute(f"...", ...)
+      - pattern: $DB.execute("..." % $X, ...)
+      - pattern: $DB.execute("...".format(...), ...)
+      - pattern: $DB.execute("..." + $X, ...)
+      - pattern: pandas.read_sql(f"...", ...)
+      - pattern: pandas.read_sql_query(f"...", ...)
+
+  - id: shell-command-injection
+    languages: [python]
+    severity: ERROR
+    message: Shell command built from a variable. Pass a list of arguments without shell=True.
+    pattern-either:
+      - pattern: os.system(f"...")
+      - pattern: os.system("..." + $X)
+      - pattern: subprocess.$FUNC(f"...", ..., shell=True, ...)
+      - pattern: subprocess.$FUNC("..." + $X, ..., shell=True, ...)
+
+  - id: dynamic-code-execution
+    languages: [python]
+    severity: ERROR
+    message: eval/exec on dynamic input.
+    pattern-either:
+      - pattern: eval($X)
+      - pattern: exec($X)
