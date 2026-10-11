@@ -90,7 +90,9 @@ def validate_code(code: str, language: str) -> str | None:
     return None
 
 
-def build_user_prompt(error_message: str, root_cause_analysis: str, file_path: str | None, original_code: str | None) -> str:
+def build_user_prompt(error_message: str, root_cause_analysis: str, file_path: str | None, original_code: str | None,
+                      context_files: dict[str, str] | None = None, feedback: str | None = None,
+                      previous_code: str | None = None) -> str:
     if original_code:
         source_section = f"FILE PATH: {file_path}\n\nCURRENT SOURCE CODE:\n```\n{original_code}\n```"
     else:
@@ -98,19 +100,35 @@ def build_user_prompt(error_message: str, root_cause_analysis: str, file_path: s
             "The source file could not be retrieved. Write a minimal, complete script that performs the "
             "task implied by the error and avoids the failure."
         )
-    return f"""ERROR LOG:
+    prompt = f"""ERROR LOG:
 {error_message}
 
 ROOT CAUSE ANALYSIS (from Agent Researcher):
 {root_cause_analysis}
 
 {source_section}"""
+    if context_files:
+        # Related files from the repo (callers/callees), so the fix fits the rest of the code base
+        related = "\n\n".join(f"FILE: {path}\n```\n{src}\n```"
+                                   for path, src in context_files.items() if path != file_path)
+        if related:
+            prompt += f"\n\nRELATED FILES (read only, do not return them):\n{related}"
+    if feedback:
+        if previous_code:
+            prompt += f"\n\nYOUR PREVIOUS ATTEMPT:\n```\n{previous_code}\n```"
+        prompt += (f"\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED:\n{feedback}\n"
+                   "Return a new complete file that fixes the original error AND these problems.")
+    return prompt
 
 
 def run_engineer(error_message: str, root_cause_analysis: str, file_path: str | None = None,
-                 original_code: str | None = None, max_attempts: int = 2) -> dict:
+                 original_code: str | None = None, max_attempts: int = 2, feedback: str | None = None,
+                 previous_code: str | None = None, context_files: dict[str, str] | None = None) -> dict:
     """
     Generate a fixed version of the broken file.
+
+    `feedback` + `previous_code` come from the guardrails or the sandbox when an earlier patch was rejected
+    (self-correction loop in backend/graph.py). `context_files` are related files from Anggota A's repo RAG.
 
     Returns a dict with:
       - summary: short explanation of the change
@@ -124,7 +142,8 @@ def run_engineer(error_message: str, root_cause_analysis: str, file_path: str | 
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT.format(language=language, fence=fence)},
-        {"role": "user", "content": build_user_prompt(error_message, root_cause_analysis, file_path, original_code)},
+        {"role": "user", "content": build_user_prompt(error_message, root_cause_analysis, file_path, original_code,
+                                                      context_files, feedback, previous_code)},
     ]
 
     summary, code, problem = "", None, None
@@ -146,6 +165,8 @@ def run_engineer(error_message: str, root_cause_analysis: str, file_path: str | 
             problem = "The answer did not contain a code block."
         elif original_code is not None and code.strip() == original_code.strip():
             problem = "The returned code is identical to the original file."
+        elif previous_code is not None and code.strip() == previous_code.strip():
+            problem = "The returned code is identical to your previous attempt, which was rejected."
         else:
             problem = validate_code(code, language)
 
