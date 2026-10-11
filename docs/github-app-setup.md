@@ -25,8 +25,7 @@ The `demo-etl-repo/` folder is a separate repository (it is in `.gitignore` here
    - **Webhook:** uncheck **Active** (errors come from GitHub Actions, not App events)
 3. **Repository permissions:**
    - Contents: **Read and write** (create branch, commit the fix)
-   - Pull requests: **Read and write** (open the Draft PR)
-   - Issues: **Read and write** (label `autoheal-bot`, "Terjadi lagi" comments on the PR, escalation issues)
+   - Pull requests: **Read and write** (open the PR)
    - Metadata: **Read-only** (set automatically)
 4. **Where can this app be installed:** Only on this account.
 5. Click **Create GitHub App** and note the **App ID**.
@@ -44,7 +43,7 @@ GITHUB_APP_PRIVATE_KEY_PATH=secrets/autoheal-app.private-key.pem
 DEMO_REPO=<you>/autoheal-demo-etl
 ```
 If the App is not ready yet, leave the App values empty and set `GITHUB_TOKEN` to a fine-grained
-Personal Access Token with Contents, Pull requests and Issues read/write on the demo repo.
+Personal Access Token with Contents and Pull requests read/write on the demo repo.
 
 Test the connection:
 ```bash
