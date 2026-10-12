@@ -128,3 +128,52 @@ def reset_circuit_breaker(owner: str, name: str, request: Request):
     _check_secret(request)
     rate_limiter.reset_breaker(f"{owner}/{name}")
     return rate_limiter.status()
+
+
+@app.get("/metrics")
+def get_metrics():
+    """Aggregated guardrail, self-correction and efficiency metrics (Sub-Task 20)."""
+    runs = run_store.list_runs()
+    total_runs = len(runs)
+    done_runs = len([r for r in runs if r.get("status") == "done"])
+    duplicate_runs = len([r for r in runs if r.get("status") == "duplicate"])
+    escalated_runs = len([r for r in runs if r.get("status") == "escalated"])
+    failed_runs = len([r for r in runs if r.get("status") == "failed"])
+
+    iterations = [r.get("iteration", 1) for r in runs if r.get("iteration")]
+    avg_iterations = round(sum(iterations) / len(iterations), 2) if iterations else 0.0
+
+    total_redacted = sum(r.get("redaction_count", 0) for r in runs)
+
+    # SAST and guardrail rejections
+    sast_rejections = 0
+    layer_rejections: dict[str, int] = {}
+    for r in runs:
+        for attempt in r.get("attempts", []):
+            if attempt.get("stage") == "sast":
+                sast_rejections += 1
+                feedback = attempt.get("feedback") or ""
+                for line in feedback.splitlines():
+                    if line.startswith("- "):
+                        rule = line[2:].split(":")[0].strip()
+                        layer_rejections[rule] = layer_rejections.get(rule, 0) + 1
+
+    actionable_runs = total_runs - duplicate_runs
+    success_rate_pct = round((done_runs / max(actionable_runs, 1)) * 100, 1) if actionable_runs > 0 else 0.0
+
+    return {
+        "total_runs": total_runs,
+        "done_runs": done_runs,
+        "duplicate_runs": duplicate_runs,
+        "escalated_runs": escalated_runs,
+        "failed_runs": failed_runs,
+        "success_rate_pct": success_rate_pct,
+        "avg_iterations": avg_iterations,
+        "total_redactions": total_redacted,
+        "sast_rejections": sast_rejections,
+        "layer_rejections": layer_rejections,
+        "estimated_tokens": sum(iterations) * 1200,
+        "estimated_cost_usd": round((sum(iterations) * 1200 / 1000) * 0.0015, 4),
+        "rate_limiter": rate_limiter.status(),
+    }
+
