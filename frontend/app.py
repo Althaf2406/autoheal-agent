@@ -85,14 +85,25 @@ import requests
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000")
 
+# Must match the statuses written by backend/graph.py (see run_store.create_run)
 STATUS_LABELS = {
     "received": "📥 Diterima",
+    "redacting": "🧹 Membersihkan data sensitif",
     "researching": "🕵️ Agent Researcher sedang menganalisis",
     "engineering": "🛠️ Agent Engineer sedang membuat perbaikan",
+    "validating": "🛡️ Cek keamanan (SAST)",
+    "testing": "🧪 Menjalankan test di sandbox",
     "creating_pr": "🌿 Membuat Pull Request",
+    "escalating": "🆘 Mengeskalasi ke manusia",
+    "resuming": "⏯️ Melanjutkan dari checkpoint",
     "done": "✅ Selesai",
+    "duplicate": "🔁 Duplikat (komentar di PR yang ada)",
+    "escalated": "🆘 Dieskalasi (GitHub Issue)",
     "failed": "❌ Gagal",
 }
+IN_PROGRESS = ("received", "redacting", "researching", "engineering", "validating", "testing", "resuming")
+STAGE_LABELS = {"engineer": "Agent Engineer", "sast": "SAST / policy", "sandbox": "Sandbox test",
+                "accepted": "Lolos"}
 
 
 def fetch_runs():
@@ -151,18 +162,20 @@ else:
     # --- Kode Perbaikan LLM ---
     st.subheader("💻 Kode Perbaikan LLM")
     engineer = run.get("engineer")
+    if run.get("iteration"):
+        st.caption(f"Iterasi Engineer: **{run['iteration']}** (maksimal 3)")
     if not engineer:
-        if run["status"] in ("received", "researching", "engineering"):
+        if run["status"] in IN_PROGRESS:
             st.info("Agent Engineer belum selesai. Tekan Refresh beberapa saat lagi.")
+        elif run["status"] == "duplicate":
+            st.info("Error ini duplikat dari run sebelumnya, jadi Agent Engineer tidak dijalankan.")
         else:
             st.warning("Tidak ada kode perbaikan untuk run ini.")
     else:
         if engineer.get("summary"):
             st.markdown(f"**Ringkasan perubahan:** {engineer['summary']}")
-        if engineer.get("valid"):
-            st.success(f"Kode lolos validasi ({engineer.get('language', '')}).")
-        else:
-            st.error(f"Kode tidak lolos validasi: {engineer.get('error')}")
+        if not engineer.get("valid"):
+            st.error(f"Agent Engineer tidak menghasilkan kode yang valid: {engineer.get('error')}")
         if engineer.get("fixed_code"):
             lang = "sql" if engineer.get("language") == "SQL" else "python"
             original = run.get("original_code")
@@ -180,24 +193,90 @@ else:
             else:
                 st.code(engineer["fixed_code"], language=lang)
 
+    # --- Guardrails (SAST & destructive policy) ---
+    sast = run.get("sast")
+    if sast:
+        st.subheader("🛡️ Guardrails (SAST)")
+        if sast.get("passed"):
+            st.success("Patch terakhir lolos semua lapisan pemeriksaan.")
+        else:
+            st.error("Patch terakhir ditolak guardrails." + (" Dieskalasi karena melanggar aturan keras."
+                                                           if sast.get("escalate") else ""))
+        rows = "\n".join(f"| {layer} | {result} |" for layer, result in sast.get("layers", {}).items())
+        st.markdown(f"| Lapisan | Hasil |\n|---|---|\n{rows}")
+        for reason in sast.get("reasons", []):
+            st.markdown(f"- `{reason}`")
+
+    # --- Sandbox test ---
+    tests = run.get("tests")
+    if tests:
+        st.subheader("🧪 Sandbox Test")
+        if tests.get("skipped"):
+            st.warning(f"Test tidak dijalankan: {tests.get('output')}")
+        else:
+            reproduced = {True: "ya", False: "tidak (test sudah lolos sebelum patch)", None: "-"}[tests.get("reproduced")]
+            st.caption(f"Mode `{tests.get('mode')}` · Perintah `{tests.get('command')}` · Error tereproduksi: {reproduced}")
+            if tests.get("passed"):
+                st.success("Test lolos setelah patch.")
+            else:
+                st.error("Test masih gagal setelah patch.")
+            col_before, col_after = st.columns(2)
+            with col_before:
+                with st.expander("Sebelum patch"):
+                    st.code(tests.get("before_output") or "-", language="text")
+            with col_after:
+                with st.expander("Sesudah patch"):
+                    st.code(tests.get("output") or "-", language="text")
+
+    # --- Riwayat iterasi (self-correction loop) ---
+    attempts = run.get("attempts") or []
+    if attempts:
+        st.subheader("🔁 Riwayat Iterasi")
+        for attempt in attempts:
+            stage = STAGE_LABELS.get(attempt.get("stage"), attempt.get("stage"))
+            icon = "✅" if attempt.get("stage") == "accepted" else "❌"
+            with st.expander(f"{icon} Iterasi {attempt.get('iteration')}: {stage}"):
+                if attempt.get("summary"):
+                    st.markdown(f"**Ringkasan:** {attempt['summary']}")
+                if attempt.get("feedback"):
+                    st.markdown("**Alasan ditolak (dikirim balik ke Engineer):**")
+                    st.code(attempt["feedback"], language="text")
+                if attempt.get("diff"):
+                    st.code(attempt["diff"], language="diff")
+
     # --- Status Keberhasilan Pull Request ---
     st.subheader("🌿 Status Pull Request")
     pr = run.get("pr")
+    issue = run.get("issue")
     if pr and pr.get("pr_url"):
         if pr.get("reused"):
             st.info(f"Pull Request #{pr['pr_number']} dari run sebelumnya masih terbuka, jadi tidak dibuat PR baru.")
         else:
-            st.success(f"Pull Request #{pr['pr_number']} berhasil dibuat.")
+            kind = "Draft Pull Request" if pr.get("draft") else "Pull Request"
+            st.success(f"{kind} #{pr['pr_number']} berhasil dibuat.")
         st.markdown(f"🔗 [{pr['pr_url']}]({pr['pr_url']})")
-        st.caption(f"Branch `{pr['branch']}` → `{pr['base_branch']}`")
+        labels = ", ".join(f"`{label}`" for label in pr.get("labels") or [])
+        st.caption(f"Branch `{pr['branch']}` → `{pr['base_branch']}`" + (f" · Label {labels}" if labels else "")
+                   + " · Wajib di-review manusia, bot tidak pernah merge.")
         if st.button("Cek status PR di GitHub"):
             try:
                 resp = requests.get(f"{BACKEND_URL}/runs/{run['id']}/pr-status", timeout=10)
                 resp.raise_for_status()
                 live = resp.json()
-                st.info(f"Status PR saat ini: **{live.get('state', 'unknown')}**")
+                draft = " (draft)" if live.get("draft") else ""
+                st.info(f"Status PR saat ini: **{live.get('state', 'unknown')}{draft}**")
             except requests.RequestException as e:
                 st.error(f"Gagal cek status PR: {e}")
+    elif run["status"] == "duplicate":
+        st.info(f"Error yang sama terjadi lagi (x{run.get('occurrences') or '?'}). Tidak dibuat PR baru.")
+        if pr and pr.get("comment_url"):
+            st.markdown(f"💬 [Komentar di PR yang sudah ada]({pr['comment_url']})")
+    elif run["status"] == "escalated":
+        st.error(f"Agent menyerah dan mengeskalasi ke manusia: {run.get('error')}")
+        if issue and issue.get("issue_url"):
+            st.markdown(f"🆘 [GitHub Issue #{issue['issue_number']}]({issue['issue_url']})")
+        elif issue and issue.get("error"):
+            st.warning(issue["error"])
     elif pr and pr.get("error"):
         st.warning(pr["error"])
     elif run["status"] == "failed":
