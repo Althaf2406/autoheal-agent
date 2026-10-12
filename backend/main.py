@@ -3,16 +3,9 @@ import os
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 
-<<<<<<< HEAD
-from backend import run_store
-from backend.agent_engineer import run_engineer
-from backend.agent_researcher import run_researcher
-from backend.github_integration import create_fix_pull_request, fetch_file, get_pull_request_status
-from backend.redactor import redact
-=======
 from backend import graph, rate_limiter, run_store
 from backend.github_integration import get_pull_request_status
->>>>>>> 4af0059b9ca15398ec0c586dceb2487f4f01a6ee
+from backend.redactor import redact
 
 app = FastAPI(title="AutoHeal Webhook Backend")
 
@@ -58,23 +51,9 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks):
     if not (payload.get("error_log") or payload.get("error")):
         raise HTTPException(status_code=422, detail="Field 'error_log' is required")
 
-<<<<<<< HEAD
-    # AMANKAN DULU!
-    error_key = "error_log" if payload.get("error_log") else "error"
-    raw_error = payload[error_key]
-    if raw_error:
-        redact_res = redact(raw_error)
-        payload[error_key] = redact_res.clean_text
-        payload["redacted_entities"] = redact_res.entity_count
-
-    print("=== Webhook Received ===")
-    print(payload)
-    print("========================")
-=======
     # The raw log may contain secrets or PII: it is not printed or stored, only the redacted text is (graph.node_redact)
     metadata = {k: v for k, v in payload.items() if k not in ("error_log", "error")}
     print(f"=== Webhook Received === {metadata}")
->>>>>>> 4af0059b9ca15398ec0c586dceb2487f4f01a6ee
 
     run = run_store.create_run(metadata)
     background_tasks.add_task(process_pipeline, run["id"], payload)

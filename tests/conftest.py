@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from langgraph.checkpoint.memory import InMemorySaver  # noqa: E402
 
-from backend import graph, rate_limiter, run_store  # noqa: E402
+from backend import dedup, graph, rate_limiter, run_store  # noqa: E402
 
 ORIGINAL = ('import pandas as pd\n\n\ndef transform(df):\n'
             '    df["revenue"] = df["total_price"] * df["quantity"]\n    return df\n')
@@ -27,6 +27,7 @@ def isolated_env(tmp_path, monkeypatch):
     monkeypatch.setattr(run_store, "_runs", {})
     monkeypatch.setattr(rate_limiter, "STORE_PATH", str(tmp_path / "rate_limiter.json"))
     rate_limiter.reset()
+    dedup.reset()
     monkeypatch.setattr(rate_limiter, "_sleep", lambda seconds: None)
     monkeypatch.setattr(graph, "_graph", graph.build_graph(InMemorySaver()))
     monkeypatch.setenv("AUTOHEAL_SANDBOX", "off")

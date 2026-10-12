@@ -6,6 +6,13 @@ class RedactResult:
     clean_text: str
     entity_count: int
 
+    @property
+    def text(self) -> str:
+        return self.clean_text
+
+
+RedactedLog = RedactResult
+
 # Using standard regexes for secrets and PII
 PATTERNS = {
     "AWS_KEY": r"\bAKIA[0-9A-Z]{16}\b",
