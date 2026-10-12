@@ -7,6 +7,7 @@ from backend import run_store
 from backend.agent_engineer import run_engineer
 from backend.agent_researcher import run_researcher
 from backend.github_integration import create_fix_pull_request, fetch_file, get_pull_request_status
+from backend.redactor import redact
 
 app = FastAPI(title="AutoHeal Webhook Backend")
 
@@ -88,6 +89,14 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=400, detail="Body must be a JSON object")
     if not (payload.get("error_log") or payload.get("error")):
         raise HTTPException(status_code=422, detail="Field 'error_log' is required")
+
+    # AMANKAN DULU!
+    error_key = "error_log" if payload.get("error_log") else "error"
+    raw_error = payload[error_key]
+    if raw_error:
+        redact_res = redact(raw_error)
+        payload[error_key] = redact_res.clean_text
+        payload["redacted_entities"] = redact_res.entity_count
 
     print("=== Webhook Received ===")
     print(payload)
