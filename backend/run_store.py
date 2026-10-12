@@ -21,7 +21,8 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-FINAL_STATUSES = ("done", "failed")
+# Statuses after which a run never changes again
+FINAL_STATUSES = ("done", "failed", "duplicate", "escalated")
 
 
 def _save() -> None:
@@ -52,13 +53,23 @@ def create_run(payload: dict) -> dict:
         "id": uuid.uuid4().hex[:8],
         "received_at": _now(),
         "updated_at": _now(),
-        "status": "received",  # received -> researching -> engineering -> creating_pr -> done / failed
-        "payload": payload,
-        "error_log": None,
+        # received -> redacting -> researching -> engineering -> validating -> testing -> creating_pr -> done
+        # (engineering/validating/testing repeat up to 3 times), or -> duplicate / escalating -> escalated / failed
+        "status": "received",
+        "payload": payload,  # webhook metadata (repo, file_path, branch, commit, run_url), without the raw log
+        "error_log": None,   # redacted error log
+        "redaction_count": None,
+        "fingerprint": None,
+        "occurrences": None,
         "analysis": None,
         "original_code": None,  # file content before the fix, used for the diff in the dashboard
-        "engineer": None,  # {"summary", "fixed_code", "language", "valid", "error"}
-        "pr": None,        # {"pr_url", "pr_number", "branch", "base_branch", "reused"} or {"error": ...}
+        "iteration": 0,
+        "engineer": None,  # latest {"summary", "fixed_code", "language", "valid", "error"}
+        "sast": None,      # {"passed", "reasons", "escalate", "layers"}
+        "tests": None,
+        "attempts": [],    # every patch tried: {"iteration", "stage", "summary", "diff", "feedback"}     # {"passed", "output", "skipped", "mode", "reproduced", "before_output", "command"}
+        "pr": None,        # {"pr_url", "pr_number", "branch", "base_branch", "reused", "draft", "labels"} or {"error"}
+        "issue": None,     # {"issue_url", "issue_number", "slack_notified"} when escalated
         "error": None,
     }
     with _lock:
