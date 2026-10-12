@@ -97,3 +97,18 @@ def test_unknown_run_404(client):
     assert client.get("/runs/nope/pr-status").status_code == 404
     assert client.get("/runs/nope/history").status_code == 404
     assert client.post("/runs/nope/resume").status_code == 404
+
+
+def test_metrics_endpoint(client, fakes):
+    resp = client.post("/webhook", json=PAYLOAD)
+    assert resp.status_code == 200
+
+    metrics_resp = client.get("/metrics")
+    assert metrics_resp.status_code == 200
+    data = metrics_resp.json()
+    assert data["total_runs"] >= 1
+    assert data["done_runs"] >= 1
+    assert "success_rate_pct" in data
+    assert "avg_iterations" in data
+    assert "sast_rejections" in data
+

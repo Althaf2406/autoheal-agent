@@ -103,3 +103,15 @@ def test_duplicate_run(monkeypatch):
 ])
 def test_other_states_render(monkeypatch, run):
     render(monkeypatch, runs=[run])
+
+
+def test_metrics_tab_renders_kpis(monkeypatch):
+    at = render(monkeypatch, runs=[DONE_RUN])
+    # Check that KPI metrics rendered
+    metric_labels = [m.label for m in at.metric]
+    assert "🎯 Fix Success Rate" in metric_labels
+    assert "🔁 Rata-rata Iterasi" in metric_labels
+    assert "🛡️ Patch Ditolak SAST" in metric_labels
+    assert "🧹 Rahasia Ter-Redact" in metric_labels
+    assert any("Ringkasan Status Run" in h.value for h in at.subheader)
+
