@@ -1,47 +1,47 @@
 # 🛠️ AutoHeal Data Agent V2 (Enterprise Hardened)
 
-**AutoHeal** adalah agen AI otonom (*Autonomous Agentic Engineer*) yang secara otomatis mendeteksi kegagalan data pipeline di **GitHub Actions**, menganalisis akar masalah (*Root Cause Analysis*), memperbaiki kode sumber (*Self-Correction*), memverifikasi keamanan (*Multi-layer SAST*), dan menguji patch di lingkungan terisolasi (*Docker Sandbox*) sebelum mengirimkan **Draft Pull Request**.
+**AutoHeal** is an autonomous AI data engineer (*Autonomous Agentic Engineer*) that automatically detects data pipeline failures in **GitHub Actions**, investigates the root cause (*Root Cause Analysis*), writes and refines source code repairs (*Self-Correction Loop*), validates code safety (*Multi-layer SAST Guardrails*), and verifies fixes in an isolated sandbox (*Docker Pytest Runner*) before opening a governed **Draft Pull Request**.
 
-AutoHeal V2 berevolusi dari prototype sederhana menjadi sistem **Enterprise-Grade** yang aman, sadar konteks repositori, anti-spam, dan tidak pernah percaya buta pada LLM (*Zero Blind Trust*).
+AutoHeal V2 transforms the original proof-of-concept into an **Enterprise-Grade** system that is secure, repository-aware, anti-spam, and strictly enforces **Zero Blind Trust** on LLM outputs.
 
 ---
 
-## 🏗️ Arsitektur Sistem V2 (LangGraph State Machine)
+## 🏗️ System Architecture (LangGraph State Machine)
 
-AutoHeal V2 menggunakan cyclic state machine berbasis **LangGraph** dengan feedback loop perbaikan mandiri hingga 3 iterasi:
+AutoHeal V2 uses a cyclic state machine built on **LangGraph** with a self-correction feedback loop of up to 3 iterations:
 
 ```mermaid
 flowchart TD
     A["📡 GitHub Actions Webhook"] --> B["🧹 PII & Secret Redactor\n(backend/redactor.py)"]
     B --> C["🔒 Dedup & Distributed Lock\n(backend/dedup.py)"]
-    C -->|"Duplikat"| C2["💬 Tambah Komentar di PR Ada\n('Terjadi lagi xN')"]
-    C -->|"Baru"| D["🕵️ Agent Researcher\n(Tavily RCA)"]
+    C -->|"Duplicate"| C2["💬 Comment on Existing PR\n('Occurred again xN')"]
+    C -->|"New"| D["🕵️ Agent Researcher\n(Tavily RCA)"]
     D --> E["🧠 Repo RAG & Code Graph\n(backend/repo_index.py)"]
     E --> F["🛠️ Agent Engineer\n(NVIDIA Nemotron 3 Ultra)"]
     F --> G["🛡️ 4-Layer SAST Guardrails\n(backend/guardrails.py)"]
-    G -->|"Melanggar"| F
-    G -->|"Lolos"| H["🧪 Isolated Sandbox Pytest\n(backend/sandbox.py)"]
-    H -->|"Gagal (< 3x)"| F
-    H -->|"Gagal 3x berturut"| I["🆘 Eskalasi ke Manusia\n(GitHub Issue + Slack)"]
-    H -->|"Lolos Verifikasi"| J["🌿 Draft PR + Label autoheal-bot\n(backend/github_integration.py)"]
+    G -->|"Rejected"| F
+    G -->|"Passed"| H["🧪 Isolated Sandbox Pytest\n(backend/sandbox.py)"]
+    H -->|"Failed (< 3x)"| F
+    H -->|"Failed 3x"| I["🆘 Escalate to Human\n(GitHub Issue + Slack)"]
+    H -->|"Passed Verification"| J["🌿 Draft PR + Label autoheal-bot\n(backend/github_integration.py)"]
 ```
 
 ---
 
-## 🌟 Fitur Utama & Enterprise Hardening
+## 🌟 Key Capabilities & Enterprise Hardening
 
-| # | Tantangan AI Agen Tradisional | Solusi Enterprise AutoHeal V2 | Modul Utama |
+| # | Traditional AI Agent Pitfall | AutoHeal V2 Enterprise Solution | Core Module |
 |---|---|---|---|
-| 1 | **Halusinasi & Blind Trust** (`ast.parse` saja) | **4-Layer SAST + Destructive Policy:** Lapis AST, `ruff` (linter), `bandit` (celah Python), `semgrep` (SQLi & injeksi perintah), serta denylist operasi destruktif (`DROP TABLE`, `DELETE` tanpa WHERE, `rm -rf`). | `backend/guardrails.py`, `semgrep_rules.yml` |
-| 2 | **Agen "Mata Kuda"** (Tanpa konteks repo) | **Repository Code Graph & Impact Analysis:** Memetakan seluruh simbol fungsi, kelas, caller, dan callee. Mencegah perubahan signature fungsi yang merusak file pemanggil di repo. | `backend/repo_index.py`, `backend/context_retriever.py` |
-| 3 | **Tanpa Pengujian Nyata** (Langsung buat PR) | **Isolated Sandbox Runner & Self-Correction:** Menjalankan `pytest` di container Docker terisolasi (`--network none`, resource cap, timeout). Jika gagal, feedback dikirim kembali ke LLM hingga 3 iterasi. | `backend/sandbox.py`, `backend/graph.py` |
-| 4 | **Kebocoran Data & Secrets** ke API luar | **Pre-LLM PII & Secret Redactor:** Menyaring AWS Key, GitHub Token, JWT, DB Credentials URL, Email, dan Kartu Kredit dari log error sebelum dikirim ke LLM / Tavily / storage. | `backend/redactor.py` |
-| 5 | **Bom PR & Race Condition** di CI/CD | **Error Fingerprinting & Distributed Lock:** Hashing normalisasi error traceback + Redis/In-Memory TTL lock. 12 webhook error yang sama hanya menghasilkan 1 PR dan 11 komentar. | `backend/dedup.py`, `backend/rate_limiter.py` |
-| 6 | **Tata Kelola PR (Governance)** | **Draft PR & Human Review:** Semua PR berstatus Draft, berlabel `autoheal-bot`, menyertakan laporan SAST & Sandbox, dan wajib di-review manusia (tanpa auto-merge). | `backend/github_integration.py` |
+| 1 | **Blind Trust & Hallucinations** (AST check only) | **4-Layer SAST + Destructive Policy:** AST parser, `ruff` (linting), `bandit` (Python security flaws), `semgrep` (SQL injection & command injection), plus a strict denylist against destructive operations (`DROP TABLE`, `DELETE` without WHERE, `rm -rf`). | `backend/guardrails.py`, `semgrep_rules.yml` |
+| 2 | **Tunnel Vision / Local-Only Context** (No global awareness) | **Repository Code Graph & Impact Analysis:** Maps all function/class definitions, callers, callees, and imports across files. Rejects patches that break caller function signatures elsewhere in the repository. | `backend/repo_index.py`, `backend/context_retriever.py` |
+| 3 | **No Real Testing** (Direct unverified PRs) | **Isolated Sandbox Runner & Self-Correction:** Executes `pytest` inside an isolated Docker container (`--network none`, resource limits, timeout kill). Failures feed back into the LLM up to 3 times with compiler/test diagnostics. | `backend/sandbox.py`, `backend/graph.py` |
+| 4 | **PII & Credential Leaks** to external APIs | **Pre-LLM PII & Secret Redaction:** Masks AWS Keys, GitHub Tokens, JWTs, DB Connection URLs, Emails, and Credit Cards before logs reach the LLM, Tavily, or persistent storage. | `backend/redactor.py` |
+| 5 | **PR Storms & Race Conditions** in CI/CD | **Error Fingerprinting & Distributed Lock:** Traceback normalization hashing + Redis/In-Memory TTL lock. 12 identical webhooks in 1 minute result in exactly 1 PR and 11 deduplicated PR comments. | `backend/dedup.py`, `backend/rate_limiter.py` |
+| 6 | **Uncontrolled PR Delivery** | **Draft PR Governance & Human Review:** All PRs are created as Drafts with the `autoheal-bot` label, include full SAST/Sandbox audit reports, and require human review (no auto-merge). | `backend/github_integration.py` |
 
 ---
 
-## 📂 Struktur Repositori & Modul
+## 📂 Repository & Module Structure
 
 ```text
 autoheal-agent/
@@ -51,134 +51,135 @@ autoheal-agent/
 │   ├── redactor.py              # PII & Secret Redaction (Sub-Task 9)
 │   ├── dedup.py                 # Error Normalization & Distributed TTL Lock (Sub-Task 10)
 │   ├── rate_limiter.py          # PR Quota, GitHub API Backoff & Circuit Breaker (Sub-Task 11)
-│   ├── guardrails.py            # 4-Layer SAST & Destructive Operation Policy (Sub-Task 12 & 13)
+│   ├── guardrails.py            # 4-Layer SAST & Destructive Operation Policy (Sub-Tasks 12 & 13)
 │   ├── sandbox.py               # Docker Isolated Sandbox Runner & Pytest Exec (Sub-Task 14)
 │   ├── repo_index.py            # AST Code Graph & Incremental Indexing (Sub-Task 17)
 │   ├── context_retriever.py     # Context Retrieval & Signature Impact Analysis (Sub-Task 18)
 │   ├── github_integration.py    # GitHub App / Token Auth, PR Governance (Sub-Task 19)
-│   ├── agent_researcher.py      # Tavily Root Cause Analysis (Researcher)
-│   ├── agent_engineer.py        # NVIDIA Nemotron Repair Generator (Engineer)
+│   ├── agent_researcher.py      # Tavily Root Cause Analysis (Researcher Agent)
+│   ├── agent_engineer.py        # NVIDIA Nemotron Repair Generator (Engineer Agent)
 │   └── semgrep_rules.yml        # Custom Security Rules (SQL Injection, Dangerous Calls)
 ├── frontend/
-│   └── app.py                   # Streamlit Observability Dashboard (Pipeline + Metrics Tab)
-├── tests/                       # 161+ Unit & Integration Test Cases
-├── docs/                        # Setup Panduan GitHub App & Dokumentasi
-├── requirements.txt             # Dependensi Produksi
-└── requirements-dev.txt         # Dependensi Testing & Pengembangan
+│   └── app.py                   # Streamlit Observability Dashboard (Pipeline + Metrics Tabs)
+├── tests/                       # 161+ Automated Unit & Integration Tests
+├── docs/                        # Setup Guides & GitHub App Configuration
+├── requirements.txt             # Production Dependencies
+└── requirements-dev.txt         # Testing & Development Dependencies
 ```
 
 ---
 
-## 📊 Dashboard Observabilitas & Metrik
+## 📊 Observability Dashboard & Metrics
 
-Dashboard Streamlit (`frontend/app.py`) memiliki 2 tab utama bertema **NVIDIA Green Dark Aesthetic**:
+The Streamlit dashboard (`frontend/app.py`) features a curated **NVIDIA Green Dark Aesthetic** with two primary tabs:
 
-1. **🚀 Tab Pipeline & Run Details:**
-   - Memilih run per webhook.
-   - Menampilkan log error asli dan log tersanitasi.
-   - Root Cause Analysis dari Agent Researcher.
-   - Kode hasil perbaikan AI beserta visualisasi perbandingan (*Unified Diff*).
-   - Status 4 lapis SAST Guardrails dan hasil eksekusi Pytest di Sandbox.
-   - Riwayat loop iterasi (*self-correction timeline*) dan link live Pull Request di GitHub.
+1. **🚀 Tab 1: Pipeline & Run Details:**
+   - Select and inspect individual runs by webhook ID.
+   - View raw incoming error logs and sanitized logs.
+   - Read Root Cause Analysis generated by Agent Researcher.
+   - Review AI repair code with syntax-highlighted **Unified Diff**.
+   - Inspect 4-layer SAST results and isolated Pytest execution logs.
+   - Follow the full self-correction attempt history and direct links to GitHub Draft PRs.
 
-2. **📊 Tab Guardrails & Metrics (Enterprise KPI):**
-   - **Fix Success Rate (%)**: Rasio perbaikan otomatis yang berhasil menghasilkan PR.
-   - **Rata-rata Iterasi**: Efisiensi loop *self-correction* sebelum lolos.
-   - **Patch Ditolak SAST**: Jumlah kode berbahaya yang berhasil dicegat.
-   - **Rahasia Ter-Redact**: Jumlah total kredensial & PII yang diamankan.
-   - **Duplikat Dicegah**: Efektivitas anti-spam deduplikasi error.
-   - **Estimasi Token & Biaya**: Pemantauan konsumsi token model NVIDIA Nemotron.
+2. **📊 Tab 2: Guardrails & Metrics (Enterprise KPI):**
+   - **🎯 Fix Success Rate (%)**: Percentage of actionable runs that successfully resulted in a valid PR.
+   - **🔁 Average Iterations**: Efficiency of the self-correction loop before passing tests.
+   - **🛡️ SAST Rejections**: Count of dangerous patches intercepted by guardrails.
+   - **🧹 Redacted Secrets**: Total sensitive credentials and PII entities safely sanitized.
+   - **🔁 Deduplication Saves**: Repeated errors prevented from creating duplicate PR spam.
+   - **⚡ & 💰 Token & Cost Estimates**: Real-time token consumption tracking for NVIDIA Nemotron models.
 
 ---
 
-## 🚀 Cara Menjalankan Secara Lokal
+## 🚀 Getting Started Locally
 
-### 1. Prasyarat & Instalasi
-Pastikan Python 3.10+ dan Git sudah terpasang.
+### 1. Prerequisites & Installation
+Ensure you have Python 3.10+ and Git installed.
 
 ```bash
-# Clone repository
+# Clone the repository
 git clone https://github.com/Althaf2406/autoheal-agent.git
 cd autoheal-agent
 
-# Buat virtual environment & install dependensi
+# Create and activate virtual environment
 python -m venv .venv
-# Windows PowerShell:
+# On Windows PowerShell:
 .venv\Scripts\Activate.ps1
-# Linux / macOS:
+# On Linux / macOS:
 source .venv/bin/activate
 
+# Install dependencies
 pip install -r requirements-dev.txt
 ```
 
-Salin file lingkungan:
+Set up your environment variables:
 ```bash
 cp .env.example .env
 ```
-Isi konfigurasi di `.env`:
-- `NEBIUS_API_KEY`: API Key untuk NVIDIA Nemotron 3 Ultra.
-- `TAVILY_API_KEY`: API Key untuk search Tavily.
-- `GITHUB_TOKEN`: Personal Access Token GitHub (izin `repo`).
-- `AUTOHEAL_SANDBOX`: `off` (default untuk development offline) atau `docker` (untuk runner Docker terisolasi).
+Fill in the credentials in `.env`:
+- `NEBIUS_API_KEY`: API Key for NVIDIA Nemotron 3 Ultra (via Nebius Token Factory).
+- `TAVILY_API_KEY`: API Key for Tavily AI Search.
+- `GITHUB_TOKEN`: GitHub Personal Access Token (with `repo` permissions).
+- `AUTOHEAL_SANDBOX`: `off` (offline default for local dev) or `docker` (runs tests in isolated containers).
 
 ---
 
-### 2. Menjalankan Backend (FastAPI)
+### 2. Running the Backend (FastAPI)
 ```bash
 uvicorn backend.main:app --reload --port 8000
 ```
-- API Webhook & Docs berjalan di: `http://127.0.0.1:8000/docs`
-- Endpoint Metrik: `http://127.0.0.1:8000/metrics`
-- Endpoint Rate Limiter: `http://127.0.0.1:8000/rate-limits`
+- API Webhook & Swagger Docs: `http://127.0.0.1:8000/docs`
+- Aggregated Metrics Endpoint: `http://127.0.0.1:8000/metrics`
+- Rate Limiter & Circuit Breaker Status: `http://127.0.0.1:8000/rate-limits`
 
 ---
 
-### 3. Menjalankan Dashboard Observabilitas (Streamlit)
-Di terminal baru:
+### 3. Running the Observability Dashboard (Streamlit)
+In a separate terminal:
 ```bash
 streamlit run frontend/app.py
 ```
-Dashboard akan otomatis terbuka di browser pada: `http://localhost:8501`
+The dashboard will open in your browser at: `http://localhost:8501`
 
 ---
 
-### 4. Menjalankan Rangkaian Pengujian Otomatis (Testing)
-Proyek ini dilengkapi dengan **161 automated test cases** yang menguji seluruh lapisan sistem secara offline dan terisolasi:
+### 4. Running Automated Tests
+The repository includes **161 automated test cases** covering every module in an offline, isolated environment:
 
 ```bash
 pytest -v
 ```
 
-Hasil pengujian mencakup:
-- `test_redactor.py`: Pengujian masking rahasia & PII.
-- `test_dedup.py`: Pengujian hashing traceback, normalisasi angka, dan thread-safe lock.
-- `test_repo_index.py`: Pengujian AST Code Graph, caller-callee, dan incremental index.
-- `test_context_retriever.py`: Pengujian context retrieval dan signature impact analysis.
-- `test_guardrails.py`: Pengujian 4 lapis SAST dan denylist operasi destruktif.
-- `test_sandbox.py`: Pengujian isolasi runner sandbox dan eksekusi pytest.
-- `test_rate_limiter.py`: Pengujian kuota PR, circuit breaker, dan exponential backoff.
-- `test_graph.py` & `test_pipeline.py`: Pengujian end-to-end alur cyclic LangGraph dan FastAPI endpoints.
-- `test_dashboard.py`: Pengujian render frontend Streamlit dan tab Guardrails & Metrics.
+Test coverage includes:
+- `test_redactor.py`: Secret and PII masking regex verification.
+- `test_dedup.py`: Traceback normalization, fingerprint hashing, and thread-safe lock tests.
+- `test_repo_index.py`: AST Code Graph extraction, caller-callee relationships, and incremental indexing.
+- `test_context_retriever.py`: Context bundle retrieval and function signature impact analysis.
+- `test_guardrails.py`: 4-layer SAST validation and destructive operation denylist enforcement.
+- `test_sandbox.py`: Sandbox runner isolation, timeouts, and pytest reproduction.
+- `test_rate_limiter.py`: Hourly PR quota, circuit breaker threshold, and exponential backoff.
+- `test_graph.py` & `test_pipeline.py`: Full cyclic LangGraph pipeline and FastAPI integration.
+- `test_dashboard.py`: Streamlit dashboard rendering, state transitions, and metrics tab.
 
 ---
 
-## 🎬 3 Skenario Demo Utama (Hackathon Showcase)
+## 🎬 3 Core Demo Scenarios (Hackathon Showcase)
 
-1. **Skenario 1 — Data Privacy & Redaction:**
-   Kirim webhook berisi error traceback yang memuat AWS Key (`AKIA...`), token GitHub, dan email pelanggan. Amati bagaimana payload ke LLM dan log dashboard otomatis tersanitasi menjadi placeholder aman.
-2. **Skenario 2 — Guardrail & Self-Correction:**
-   Simulasikan error yang membuat AI mencoba menghasilkan patch destruktif (`DROP TABLE` atau f-string SQL). Amati bagaimana Guardrail menolaknya pada Iterasi 1, mengirimkan feedback ke AI, dan AI memperbaikinya menjadi kueri aman pada Iterasi 2.
-3. **Skenario 3 — 12-Webhook Storm Deduplication:**
-   Simulasikan 12 webhook error yang datang serentak dalam 1 menit. Amati bagaimana sistem hanya membuka 1 Pull Request, sementara 11 lainnya dikonversi menjadi komentar informatif *"Terjadi lagi (x12)"*.
+1. **Scenario 1 — Data Privacy & Redaction:**
+   Send a simulated webhook containing AWS Keys (`AKIA...`), GitHub personal tokens, and customer email addresses in the stack trace. Observe how the payload is sanitized into safe placeholders before reaching the LLM and stored runs.
+2. **Scenario 2 — Guardrail & Self-Correction Loop:**
+   Simulate an error that triggers the AI to attempt a dangerous patch (e.g., `DROP TABLE` or SQL f-string injection). Observe how the SAST Guardrail rejects it on Iteration 1, sends diagnostic feedback back to the agent, and the agent successfully produces a parameterized, safe patch on Iteration 2.
+3. **Scenario 3 — 12-Webhook Storm Deduplication:**
+   Simulate a flurry of 12 identical webhooks fired within 1 minute. Observe how the system opens exactly 1 Draft Pull Request, while the remaining 11 are converted into informative comments (*"Occurred again (x12)"*).
 
 ---
 
-## 🛠️ Tech Stack & Ekosistem
+## 🛠️ Technology Stack & Ecosystem
 - **AI Core:** NVIDIA Nemotron 3 Ultra (via Nebius Token Factory), Tavily AI Search
 - **Agent Orchestration:** LangGraph (StateGraph, MemorySaver, SQLite Checkpoint)
-- **Security & Guardrails:** Bandit, Ruff, Semgrep, AST Analysis, Regex Masking
+- **Security & Guardrails:** Bandit, Ruff, Semgrep, Python AST Analysis, Gitleaks-style Regex
 - **Context Engine:** AST Code Graph Traversal, Incremental SHA-256 Hashing
-- **Execution Sandbox:** Docker (`--network none`, cgroups cap, timeout kill)
-- **API & Backend:** FastAPI, Uvicorn, Pydantic, Python Dotenv
-- **Observability:** Streamlit, Pandas, Altair, NVIDIA Dark Theme CSS
+- **Execution Sandbox:** Docker (`--network none`, cgroup resource limits, timeout kill)
+- **Backend & APIs:** FastAPI, Uvicorn, Pydantic, Python Dotenv
+- **Observability:** Streamlit, Pandas, Altair, NVIDIA Green Theme CSS
 - **Integration:** GitHub REST API, PyGithub, GitHub Actions
